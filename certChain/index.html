@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CertChain — Blockchain Certificate Verification</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="./style.css">
+</head>
+<body>
+
+  <header class="topbar">
+    <a href="#/verify" class="brand">
+      <span class="seal-mark" aria-hidden="true">
+        <svg viewBox="0 0 48 48" width="30" height="30">
+          <circle cx="24" cy="24" r="21" fill="none" stroke="currentColor" stroke-width="2"/>
+          <circle cx="24" cy="24" r="15" fill="none" stroke="currentColor" stroke-width="1"/>
+          <path d="M24 12 L27 20 L35.5 20 L28.7 25.2 L31.3 33.5 L24 28.5 L16.7 33.5 L19.3 25.2 L12.5 20 L21 20 Z" fill="currentColor"/>
+        </svg>
+      </span>
+      <span class="brand-text">
+        <strong>CertChain</strong>
+        <em>Blockchain-Based Certificate Verification</em>
+      </span>
+    </a>
+    <nav class="topnav">
+      <a href="#/verify" data-route="verify">Verify a Certificate</a>
+      <a href="#/admin" data-route="admin" class="role-admin-only">Admin</a>
+      <a href="#/student" data-route="student" class="role-student-only">My Certificates</a>
+      <span id="session-slot"></span>
+    </nav>
+  </header>
+
+  <main id="app" class="app"></main>
+
+  <footer class="footer">
+    <span>CertChain Sprint 3 Frontend Build &mdash; Presentation Layer (Vanilla JS, HTML5, CSS3)</span>
+    <span class="footer-dim">No framework. No build step. Backend calls are mocked until Sprint 4.</span>
+  </footer>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+  <script src="./data.js"></script>
+  <script src="./api.js"></script>
+  <script src="./app.js"></script>
+  <script src="./scripts/seed.js"></script>
+</body>
+</html>
