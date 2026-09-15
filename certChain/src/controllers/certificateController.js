@@ -81,7 +81,20 @@ async function listCertificates(req, res, next) {
     else if (req.user.role === "student") filter.student = req.user.student;
 
     const certificates = await Certificate.find(filter).sort({ issueDate: -1 });
-    res.json({ success: true, certificates: certificates.map(serializeCertificate) });
+    const transactions = await BlockchainTransaction.find({
+      certificate: { $in: certificates.map(certificate => certificate._id) },
+    });
+    const transactionByCertificate = new Map(
+      transactions.map(transaction => [transaction.certificate.toString(), serializeTransaction(transaction)])
+    );
+
+    res.json({
+      success: true,
+      certificates: certificates.map(certificate => ({
+        ...serializeCertificate(certificate),
+        transaction: transactionByCertificate.get(certificate._id.toString()) || null,
+      })),
+    });
   } catch (err) {
     next(err);
   }
@@ -178,6 +191,15 @@ function serializeCertificate(c) {
     qrCode: c.qrCode,
     status: c.status,
     revokedAt: c.revokedAt || null,
+  };
+}
+
+function serializeTransaction(transaction) {
+  return {
+    txHash: transaction.txHash,
+    blockNumber: transaction.blockNumber,
+    contractAddress: transaction.contractAddress,
+    simulated: transaction.simulated,
   };
 }
 

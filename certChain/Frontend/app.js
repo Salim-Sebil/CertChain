@@ -99,6 +99,15 @@ async function renderRoute() {
   window.scrollTo(0, 0);
 
   if (path === "login") return renderLogin();
+  if (path === "set-password") {
+    const resetToken = params.get("token");
+    if (!currentUser && !resetToken) {
+      toast("Please log in to set your password.", true);
+      location.hash = "/login";
+      return;
+    }
+    return renderSetPassword(resetToken || null);
+  }
   if (path === "admin") return renderAdmin();
   if (path === "student") return renderStudent();
   return renderVerify(params);
@@ -176,12 +185,68 @@ function renderLogin() {
     try {
       const user = await Api.login(email, password);
       currentUser = user;
+      if (user.mustChangePassword) {
+        toast("Please set a new password to continue.");
+        location.hash = "/set-password";
+        return;
+      }
       toast(`Welcome back, ${user.name.split(" ")[0]}.`);
       location.hash = user.role === "admin" ? "/admin" : "/student";
     } catch (err) {
       document.getElementById("login-error").innerHTML = `<div class="error-msg">${escapeHtml(err.message)}</div>`;
       submitBtn.disabled = false;
       submitBtn.textContent = "Sign In";
+    }
+  });
+}
+
+function renderSetPassword(resetToken = null) {
+  app.innerHTML = `
+    <div class="login-shell">
+      <div class="login-card">
+        <span class="eyebrow" style="text-align:center;display:block;">Set Your Password</span>
+        <h1>Choose a new password</h1>
+        <p class="card-desc">This password will be used for your future sign-ins. Use at least 8 characters.</p>
+        <div id="set-password-error"></div>
+        <form id="set-password-form">
+          <div class="field">
+            <label for="new-password">New password</label>
+            <input type="password" id="new-password" required minLength="8" placeholder="Create a strong password">
+          </div>
+          <div class="field">
+            <label for="confirm-password">Confirm password</label>
+            <input type="password" id="confirm-password" required minLength="8" placeholder="Re-enter your password">
+          </div>
+          <button class="btn btn-primary" type="submit" style="width:100%;justify-content:center;">Save Password</button>
+        </form>
+      </div>
+    </div>`;
+
+  document.getElementById("set-password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const newPassword = document.getElementById("new-password").value;
+    const confirmPassword = document.getElementById("confirm-password").value;
+    const errorBox = document.getElementById("set-password-error");
+
+    if (newPassword !== confirmPassword) {
+      errorBox.innerHTML = '<div class="error-msg">Passwords do not match.</div>';
+      return;
+    }
+
+    try {
+      if (resetToken) {
+        await Api.setPasswordWithResetToken(resetToken, newPassword);
+        currentUser = null;
+        toast("Password reset successful. Please sign in with your new password.");
+        location.hash = "/login";
+      } else {
+        await Api.setPassword(newPassword);
+        currentUser.mustChangePassword = false;
+        toast("Password updated successfully.");
+        location.hash = currentUser.role === "admin" ? "/admin" : "/student";
+      }
+    } catch (err) {
+      errorBox.innerHTML = `<div class="error-msg">${escapeHtml(err.message)}</div>`;
     }
   });
 }
@@ -248,12 +313,16 @@ async function renderAdmin() {
             <div class="field"><label for="reg-email">Email</label><input type="email" id="reg-email" required></div>
           </div>
           <div class="form-row">
-            <div class="field"><label for="reg-number">Student number</label><input type="text" id="reg-number" required placeholder="SVU/2025/0001"></div>
+            <div class="field"><label for="reg-number">Student number</label><input type="text" id="reg-number" required placeholder="1030903"></div>
             <div class="field"><label for="reg-year">Graduation year</label><input type="number" id="reg-year" required value="${new Date().getFullYear()}" min="2000" max="2100"></div>
           </div>
           <div class="form-row">
             <div class="field"><label for="reg-programme">Programme</label><input type="text" id="reg-programme" required placeholder="BSc. Computer Science"></div>
             <div class="field"><label for="reg-department">Department</label><input type="text" id="reg-department" required placeholder="School of Computing"></div>
+          </div>
+          <div class="field">
+            <label for="reg-password">Temporary password (optional)</label>
+            <input type="text" id="reg-password" placeholder="Leave blank to auto-generate one">
           </div>
           <button class="btn btn-primary" type="submit">Register Student</button>
         </form>
@@ -353,15 +422,21 @@ function wireRegisterForm() {
   document.getElementById("register-form").addEventListener("submit", async (e) => {
     e.preventDefault();
     try {
-      await Api.registerStudent({
+      const temporaryPassword = document.getElementById("reg-password").value.trim();
+      const result = await Api.registerStudent({
         name: document.getElementById("reg-name").value,
         email: document.getElementById("reg-email").value,
         studentNumber: document.getElementById("reg-number").value,
         graduationYear: document.getElementById("reg-year").value,
         programme: document.getElementById("reg-programme").value,
         department: document.getElementById("reg-department").value,
+        temporaryPassword: temporaryPassword || undefined,
       });
-      toast("Student registered. They can now be selected during issuance.");
+
+      const resetMessage = result.resetLink
+        ? `Student registered. Temporary password: ${result.temporaryPassword}. Password reset link sent to ${document.getElementById("reg-email").value}: ${result.resetLink}`
+        : (result.temporaryPassword ? `Student registered. Temporary password: ${result.temporaryPassword}` : "Student registered. They can now be selected during issuance.");
+      toast(resetMessage);
       e.target.reset();
       document.getElementById("issue-student").innerHTML =
         `<option value="">Select a registered student…</option>` +
@@ -503,11 +578,19 @@ function openQrModal(certificateId) {
     <p class="text-dim" style="font-size:12.5px;">Scanning this code opens the verifier page pre-filled with this certificate.</p>
     <button class="modal-close" id="modal-close-btn">Close</button>
   `);
-  try {
-    // eslint-disable-next-line no-undef
-    new QRCode(overlay.querySelector("#qr-target"), { text: cert.qrCode, width: 176, height: 176, colorDark: "#14213D", colorLight: "#ffffff" });
-  } catch (e) {
-    overlay.querySelector("#qr-target").innerHTML = `<p class="text-dim">QR library unavailable offline — certificate number above can be entered manually.</p>`;
+  const target = overlay.querySelector("#qr-target");
+  const verificationUrl = `${location.origin}${location.pathname}#/verify?cert=${encodeURIComponent(cert.certificateNumber)}`;
+  if (cert.qrCode && cert.qrCode.startsWith("data:image/")) {
+    const image = document.createElement("img");
+    image.src = cert.qrCode;
+    image.alt = `QR code for ${cert.certificateNumber}`;
+    image.width = 176;
+    image.height = 176;
+    target.appendChild(image);
+  } else if (typeof QRCode === "function") {
+    new QRCode(target, { text: verificationUrl, width: 176, height: 176, colorDark: "#14213D", colorLight: "#ffffff" });
+  } else {
+    target.innerHTML = `<p class="text-dim">QR library unavailable offline — certificate number above can be entered manually.</p>`;
   }
   document.getElementById("modal-close-btn").addEventListener("click", closeModal);
 }
@@ -515,6 +598,10 @@ function openQrModal(certificateId) {
 function openTxModal(certificateId) {
   const cert = DB.certificates.find(c => c.certificateId === certificateId);
   const tx = DB.blockchainTransactions.find(t => t.certificateId === certificateId);
+  if (!cert || !tx) {
+    toast("Blockchain transaction details are unavailable.", true);
+    return;
+  }
   showModal(`
     <h3>Blockchain Transaction</h3>
     <span class="cert-number">${escapeHtml(cert.certificateNumber)}</span>
@@ -533,6 +620,10 @@ function openTxModal(certificateId) {
 function downloadCertificate(certificateId) {
   const cert = DB.certificates.find(c => c.certificateId === certificateId);
   const tx = DB.blockchainTransactions.find(t => t.certificateId === certificateId);
+  if (!cert) {
+    toast("Certificate could not be found.", true);
+    return;
+  }
   const record = {
     certificateNumber: cert.certificateNumber,
     student: studentName(cert.studentId),
@@ -540,17 +631,18 @@ function downloadCertificate(certificateId) {
     issueDate: cert.issueDate,
     status: cert.status,
     hash: cert.hash,
-    blockchainTransaction: tx.txHash,
-    verifyUrl: cert.qrCode,
+    blockchainTransaction: tx?.txHash || null,
+    verifyUrl: `${location.origin}${location.pathname}#/verify?cert=${encodeURIComponent(cert.certificateNumber)}`,
     note: "Upload this file on the Verify a Certificate page to re-check its hash against the blockchain record.",
   };
-  const blob = new Blob([JSON.stringify(record, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `${cert.certificateNumber}.json`;
-  a.click();
-  URL.revokeObjectURL(url);
+  const url = URL.createObjectURL(new Blob([JSON.stringify(record, null, 2)], { type: "application/json" }));
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `${cert.certificateNumber}.json`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 0);
   toast("Certificate downloaded.");
 }
 

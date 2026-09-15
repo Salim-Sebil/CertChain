@@ -1,0 +1,77 @@
+{
+  "_note": "Hand-authored from contracts/CertificateRegistry.sol because this environment has no Solidity compiler available (no network access to install solc/Hardhat). This MUST be regenerated and this file replaced once you run `npm run compile` in the blockchain/ project — copy artifacts/contracts/CertificateRegistry.sol/CertificateRegistry.json's \"abi\" field over this array before trusting it in production. Treat this as a best-effort placeholder that documents the intended interface, not a compiler-verified artifact.",
+  "abi": [
+    { "type": "constructor", "inputs": [], "stateMutability": "nonpayable" },
+    {
+      "type": "event", "name": "AdminAdded", "anonymous": false,
+      "inputs": [{ "indexed": true, "name": "account", "type": "address" }]
+    },
+    {
+      "type": "event", "name": "AdminRemoved", "anonymous": false,
+      "inputs": [{ "indexed": true, "name": "account", "type": "address" }]
+    },
+    {
+      "type": "event", "name": "CertificateIssued", "anonymous": false,
+      "inputs": [
+        { "indexed": true, "name": "certHash", "type": "bytes32" },
+        { "indexed": false, "name": "certId", "type": "string" },
+        { "indexed": false, "name": "timestamp", "type": "uint256" }
+      ]
+    },
+    {
+      "type": "event", "name": "CertificateRevoked", "anonymous": false,
+      "inputs": [
+        { "indexed": true, "name": "certHash", "type": "bytes32" },
+        { "indexed": false, "name": "timestamp", "type": "uint256" }
+      ]
+    },
+    {
+      "type": "function", "name": "owner", "stateMutability": "view",
+      "inputs": [], "outputs": [{ "name": "", "type": "address" }]
+    },
+    {
+      "type": "function", "name": "admins", "stateMutability": "view",
+      "inputs": [{ "name": "", "type": "address" }],
+      "outputs": [{ "name": "", "type": "bool" }]
+    },
+    {
+      "type": "function", "name": "totalIssued", "stateMutability": "view",
+      "inputs": [], "outputs": [{ "name": "", "type": "uint256" }]
+    },
+    {
+      "type": "function", "name": "addAdmin", "stateMutability": "nonpayable",
+      "inputs": [{ "name": "account", "type": "address" }], "outputs": []
+    },
+    {
+      "type": "function", "name": "removeAdmin", "stateMutability": "nonpayable",
+      "inputs": [{ "name": "account", "type": "address" }], "outputs": []
+    },
+    {
+      "type": "function", "name": "issueCertificate", "stateMutability": "nonpayable",
+      "inputs": [
+        { "name": "certHash", "type": "bytes32" },
+        { "name": "certId", "type": "string" }
+      ],
+      "outputs": []
+    },
+    {
+      "type": "function", "name": "verifyCertificate", "stateMutability": "view",
+      "inputs": [{ "name": "certHash", "type": "bytes32" }],
+      "outputs": [
+        { "name": "exists", "type": "bool" },
+        { "name": "certId", "type": "string" },
+        { "name": "timestamp", "type": "uint256" },
+        { "name": "revoked", "type": "bool" }
+      ]
+    },
+    {
+      "type": "function", "name": "certificateExists", "stateMutability": "view",
+      "inputs": [{ "name": "certHash", "type": "bytes32" }],
+      "outputs": [{ "name": "", "type": "bool" }]
+    },
+    {
+      "type": "function", "name": "revokeCertificate", "stateMutability": "nonpayable",
+      "inputs": [{ "name": "certHash", "type": "bytes32" }], "outputs": []
+    }
+  ]
+}

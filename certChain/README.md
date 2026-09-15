@@ -8,7 +8,7 @@ Implements every endpoint listed in Table 4.2, matching the mock
 ## Setup
 
 ```bash
-cd backend
+cd Backend
 npm install
 cp .env.example .env     # then fill in MONGODB_URI and JWT_SECRET at minimum
 npm run seed              # creates demo accounts + 2 certificates
@@ -88,7 +88,7 @@ interchangeable for a live demo.
 
 ## Connecting the Sprint 3 frontend
 
-In `frontend/js/api.js`, each function's real endpoint is already noted
+In `api.js`, each function's real endpoint is already noted
 in a comment. The swap is mechanical: replace the mock body with a
 `fetch()` call to `http://localhost:5000/api/...`, attaching
 `Authorization: Bearer <token>` (store the token returned by
@@ -99,7 +99,7 @@ served from.
 ## Project structure
 
 ```
-backend/
+Backend/
 ├── server.js                 Entry point — connects DB, starts Express
 ├── package.json
 ├── .env.example

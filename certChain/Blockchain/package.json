@@ -1,0 +1,22 @@
+{
+  "name": "certchain-blockchain",
+  "version": "1.0.0",
+  "description": "Smart contract layer (Solidity + Hardhat) for the Blockchain-Based Certificate Verification System — Sprint 5 deliverable.",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "coverage": "hardhat coverage",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "node": "hardhat node",
+    "verify:sepolia": "hardhat run scripts/verify.js --network sepolia"
+  },
+  "devDependencies": {
+    "hardhat": "^2.22.10",
+    "@nomicfoundation/hardhat-toolbox": "^5.0.0",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
