@@ -125,6 +125,7 @@ const Api = {
     DB.certificates.push({
       certificateId: certificate.certificateId,
       studentId: certificate.studentId,
+      studentName: certificate.studentName,
       certificateNumber: certificate.certificateNumber,
       degree: certificate.degree,
       issueDate: certificate.issueDate,

@@ -57,7 +57,11 @@ async function issueCertificate(req, res, next) {
       simulated: chainResult.simulated,
     });
 
-    res.status(201).json({ success: true, certificate: serializeCertificate(certificate) });
+    const studentName = (await student.populate("user", "name")).user?.name || null;
+    res.status(201).json({
+      success: true,
+      certificate: { ...serializeCertificate(certificate), studentName },
+    });
   } catch (err) {
     next(err);
   }
@@ -80,7 +84,9 @@ async function listCertificates(req, res, next) {
     if (studentId) filter.student = studentId;
     else if (req.user.role === "student") filter.student = req.user.student;
 
-    const certificates = await Certificate.find(filter).sort({ issueDate: -1 });
+    const certificates = await Certificate.find(filter)
+      .populate({ path: "student", populate: { path: "user", select: "name" } })
+      .sort({ issueDate: -1 });
     const transactions = await BlockchainTransaction.find({
       certificate: { $in: certificates.map(certificate => certificate._id) },
     });
@@ -92,6 +98,7 @@ async function listCertificates(req, res, next) {
       success: true,
       certificates: certificates.map(certificate => ({
         ...serializeCertificate(certificate),
+        studentName: certificate.student?.user?.name || null,
         transaction: transactionByCertificate.get(certificate._id.toString()) || null,
       })),
     });

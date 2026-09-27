@@ -358,7 +358,7 @@ async function renderAdmin() {
     const q = e.target.value.trim().toLowerCase();
     const all = await Api.getAllCertificates();
     const filtered = !q ? all : all.filter(c =>
-      c.certificateNumber.toLowerCase().includes(q) || studentName(c.studentId).toLowerCase().includes(q));
+      c.certificateNumber.toLowerCase().includes(q) || certificateStudentName(c).toLowerCase().includes(q));
     renderLedgerTable(filtered);
   });
   renderReportBars(summary);
@@ -462,7 +462,7 @@ function renderLedgerTable(certificates) {
         ${certificates.map(c => `
           <tr>
             <td class="mono">${escapeHtml(c.certificateNumber)}</td>
-            <td>${escapeHtml(studentName(c.studentId))}</td>
+            <td>${escapeHtml(certificateStudentName(c))}</td>
             <td>${escapeHtml(c.degree)}</td>
             <td>${fmtDate(c.issueDate)}</td>
             <td>${statusBadge(c.status)}</td>
@@ -489,6 +489,10 @@ function renderLedgerTable(certificates) {
       }
     });
   });
+}
+
+function certificateStudentName(certificate) {
+  return certificate.studentName || studentName(certificate.studentId);
 }
 
 function renderReportBars(summary) {
@@ -624,26 +628,81 @@ function downloadCertificate(certificateId) {
     toast("Certificate could not be found.", true);
     return;
   }
-  const record = {
-    certificateNumber: cert.certificateNumber,
-    student: studentName(cert.studentId),
-    degree: cert.degree,
-    issueDate: cert.issueDate,
-    status: cert.status,
-    hash: cert.hash,
-    blockchainTransaction: tx?.txHash || null,
-    verifyUrl: `${location.origin}${location.pathname}#/verify?cert=${encodeURIComponent(cert.certificateNumber)}`,
-    note: "Upload this file on the Verify a Certificate page to re-check its hash against the blockchain record.",
-  };
-  const url = URL.createObjectURL(new Blob([JSON.stringify(record, null, 2)], { type: "application/json" }));
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${cert.certificateNumber}.json`;
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-  toast("Certificate downloaded.");
+  if (!window.jspdf?.jsPDF) {
+    toast("PDF generator is unavailable. Check your internet connection and try again.", true);
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+  const width = pdf.internal.pageSize.getWidth();
+  const height = pdf.internal.pageSize.getHeight();
+  const student = certificateStudentName(cert);
+  const status = cert.status === "revoked" ? "REVOKED" : "VALID";
+
+  pdf.setFillColor(250, 247, 240);
+  pdf.rect(0, 0, width, height, "F");
+  pdf.setDrawColor(184, 144, 63);
+  pdf.setLineWidth(1.1);
+  pdf.rect(12, 12, width - 24, height - 24);
+  pdf.setLineWidth(0.35);
+  pdf.rect(15, 15, width - 30, height - 30);
+
+  pdf.setTextColor(20, 33, 61);
+  pdf.setFont("times", "bold");
+  pdf.setFontSize(13);
+  pdf.text("CERTCHAIN", width / 2, 31, { align: "center" });
+  pdf.setTextColor(184, 144, 63);
+  pdf.setFontSize(10);
+  pdf.text("BLOCKCHAIN-BASED CERTIFICATE VERIFICATION", width / 2, 38, { align: "center" });
+
+  pdf.setTextColor(20, 33, 61);
+  pdf.setFont("times", "normal");
+  pdf.setFontSize(30);
+  pdf.text("Certificate of Achievement", width / 2, 61, { align: "center" });
+  pdf.setTextColor(70, 67, 58);
+  pdf.setFontSize(12);
+  pdf.text("This certifies that", width / 2, 76, { align: "center" });
+  pdf.setTextColor(20, 33, 61);
+  pdf.setFont("times", "bold");
+  pdf.setFontSize(24);
+  pdf.text(student, width / 2, 90, { align: "center", maxWidth: width - 90 });
+  pdf.setDrawColor(184, 144, 63);
+  pdf.line(58, 96, width - 58, 96);
+  pdf.setFont("times", "normal");
+  pdf.setFontSize(14);
+  pdf.text(`has been awarded ${cert.degree}`, width / 2, 108, { align: "center", maxWidth: width - 76 });
+  pdf.setFontSize(11);
+  pdf.text(`Issued ${fmtDate(cert.issueDate)}`, width / 2, 119, { align: "center" });
+
+  pdf.setFont("helvetica", "bold");
+  pdf.setFontSize(10);
+  pdf.setTextColor(20, 33, 61);
+  pdf.text(`Certificate Number: ${cert.certificateNumber}`, 25, 137);
+  pdf.setTextColor(cert.status === "revoked" ? 161 : 47, cert.status === "revoked" ? 61 : 104, cert.status === "revoked" ? 46 : 68);
+  pdf.text(`Status: ${status}`, 25, 145);
+  pdf.setTextColor(20, 33, 61);
+  pdf.setFont("helvetica", "normal");
+  pdf.setFontSize(8);
+  pdf.text("Verification Hash:", 25, 155);
+  pdf.text(pdf.splitTextToSize(cert.hash, width - 78), 25, 160);
+  if (tx?.txHash) {
+    pdf.setFontSize(7);
+    pdf.text(`Blockchain Transaction: ${tx.txHash}`, 25, 172, { maxWidth: width - 78 });
+  }
+  if (cert.qrCode?.startsWith("data:image/")) {
+    try {
+      pdf.addImage(cert.qrCode, "PNG", width - 53, 132, 28, 28);
+    } catch {
+      // QR image formats can vary; the certificate remains verifiable by hash.
+    }
+  }
+  pdf.setFontSize(8);
+  pdf.setTextColor(107, 101, 88);
+  pdf.text("Verify this certificate at the CertChain public verification page.", width / 2, height - 22, { align: "center" });
+
+  pdf.save(`${cert.certificateNumber}.pdf`);
+  toast("Certificate PDF downloaded.");
 }
 
 /* ================================================================
@@ -671,8 +730,8 @@ function renderVerify(params) {
       <div class="grid-2">
         <div>
           <label for="verify-upload">Upload certificate file</label>
-          <input type="file" id="verify-upload" accept=".json,.txt">
-          <p class="field-hint">Upload the file downloaded from the student dashboard — its hash is recomputed and checked against the on-chain record.</p>
+          <input type="file" id="verify-upload" accept=".pdf,.json,.txt">
+          <p class="field-hint">Upload a downloaded certificate PDF or JSON file to verify its embedded hash.</p>
         </div>
         <div>
           <label>Scan QR code</label>
@@ -698,6 +757,33 @@ function renderVerify(params) {
 async function handleFileUpload(e) {
   const file = e.target.files[0];
   if (!file) return;
+
+  if (file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")) {
+    if (!window.pdfjsLib) {
+      toast("PDF reader is unavailable. Check your internet connection and try again.", true);
+      return;
+    }
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+    try {
+      const document = await window.pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+      const pages = await Promise.all(Array.from({ length: document.numPages }, async (_, index) => {
+        const page = await document.getPage(index + 1);
+        const content = await page.getTextContent();
+        return content.items.map(item => item.str).join(" ");
+      }));
+      const text = pages.join(" ");
+      const hash = text.match(/\b[0-9a-f]{64}\b/i)?.[0];
+      const certificateNumber = text.match(/\bSVU-\d{4}-\d{4}\b/i)?.[0];
+      if (hash) return runVerification({ hash });
+      if (certificateNumber) return runVerification({ certificateNumber });
+    } catch {
+      toast("Could not read that PDF certificate.", true);
+      return;
+    }
+    toast("Could not find a certificate hash or number in that PDF.", true);
+    return;
+  }
+
   const text = await file.text();
   try {
     const parsed = JSON.parse(text);
